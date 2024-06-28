@@ -26,12 +26,12 @@
 
 <body>
   <div id="map"></div>
-  <div class="absolute top-10 left-10 w-[600px] bg-white shadow-md flex items-center px-8 py-6">
-    <div class="w-full relative mb-5">
+  <div class="absolute top-10 left-10 w-[800px] bg-white shadow-md flex gap-12 items-center px-8 py-6">
+    <div class="w-full relative">
       <label for="time-range" class="sr-only">Time range</label>
       <input id="time-range" type="range" min="0" max="86400" oninput="updateLightsCallback(this)"
         class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700">
-      <div class="flex absolute  top-8 w-full items-center justify-between">
+      <div class="flex top-8 w-full items-center justify-between">
         <div class="text-sm text-gray-500 dark:text-gray-400">00:00</div>
         <div class="text-sm text-gray-500 dark:text-gray-400">02:00</div>
         <div class="text-sm text-gray-500 dark:text-gray-400">04:00</div>
@@ -46,6 +46,7 @@
         <div class="text-sm text-gray-500 dark:text-gray-400">22:00</div>
       </div>
     </div>
+    <input type="date" id="datepicker" oninput="updateDate(this)" />
   </div>
   <script>
     // TO MAKE THE MAP APPEAR YOU MUST
@@ -55,7 +56,7 @@
     let lat = 0, lng = 0;
     let map = null;
 
-    const sunDate = new Date()
+    let sunDate = new Date()
 
     const currentTime = sunDate.getHours() * 60 * 60 +
       sunDate.getMinutes() * 60 +
@@ -63,6 +64,9 @@
 
     const timeInput = document.getElementById('time-range');
     timeInput.value = currentTime;
+
+    const datepicker = document.getElementById('datepicker')
+    datepicker.value = sunDate.toISOString().slice(0, 10)
 
 
     const successCallback = (position) => {
@@ -173,6 +177,11 @@
       sunDate.setHours(Math.floor(time / 60 / 60));
       sunDate.setMinutes(Math.floor(time / 60) % 60);
       sunDate.setSeconds(time % 60);
+    }
+
+    function updateDate(e) {
+      sunDate = new Date(e.value)
+      updateLightsCallback({ value: document.getElementById('time-range').value })
     }
 
     function updateLightsCallback(e) {
