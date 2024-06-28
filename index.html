@@ -77,7 +77,7 @@
     };
 
     const errorCallback = (error) => {
-      console.log(error);
+      alert("Please enable location to load the map and refresh.")
     };
 
     navigator.geolocation.getCurrentPosition(successCallback, errorCallback);
