@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Display a map on a webpage</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div class="absolute top-10 left-10 w-[600px] bg-white shadow-md flex items-center px-8 py-6">
+    <div class="w-full relative mb-5">
+      <label for="time-range" class="sr-only">Time range</label>
+      <input id="time-range" type="range" min="0" max="86400" oninput="updateLightsCallback(this)"
+        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700">
+      <div class="flex absolute  top-8 w-full items-center justify-between">
+        <div class="text-sm text-gray-500 dark:text-gray-400">00:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">02:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">04:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">06:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">08:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">10:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">12:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">14:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">16:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">18:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">20:00</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">22:00</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // TO MAKE THE MAP APPEAR YOU MUST
+    // ADD YOUR ACCESS TOKEN FROM
+    // https://account.mapbox.com
+    mapboxgl.accessToken = '';
+    let lat = 0, lng = 0;
+    let map = null;
+
+    const sunDate = new Date()
+
+    const currentTime = sunDate.getHours() * 60 * 60 +
+      sunDate.getMinutes() * 60 +
+      sunDate.getSeconds()
+
+    const timeInput = document.getElementById('time-range');
+    timeInput.value = currentTime;
+
+
+    const successCallback = (position) => {
+      lat = position.coords.latitude
+      lng = position.coords.longitude
+
+      initMap()
+    };
+
+    const errorCallback = (error) => {
+      console.log(error);
+    };
+
+    navigator.geolocation.getCurrentPosition(successCallback, errorCallback);
+
+    function initMap() {
+      map = new mapboxgl.Map({
+        style: 'mapbox://styles/mapbox/light-v11',
+        center: [lng, lat],
+        zoom: 17,
+        pitch: 45,
+        bearing: -17.6,
+        container: 'map',
+        antialias: true
+      });
+
+      map.on('style.load', () => {
+        map.addSource('mapbox-dem', {
+          'type': 'raster-dem',
+          'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          'tileSize': 512,
+          'maxzoom': 14
+        });
+
+        map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
+
+        const layers = map.getStyle().layers;
+        const labelLayerId = layers.find(
+          (layer) => layer.type === 'symbol' && layer.layout['text-field']
+        ).id;
+
+        map.addLayer(
+          {
+            'id': 'add-3d-buildings',
+            'source': 'composite',
+            'source-layer': 'building',
+            'filter': ['==', 'extrude', 'true'],
+            'type': 'fill-extrusion',
+            'minzoom': 15,
+            'paint': {
+              'fill-extrusion-color': '#ccc',
+              'fill-extrusion-height': [
+                'get', 'height'
+              ],
+              'fill-extrusion-base': [
+                'get', 'min_height'
+              ],
+              'fill-extrusion-opacity': 1
+            }
+          },
+          labelLayerId
+        );
+
+        updateLights()
+      });
+    }
+
+    function updateLights() {
+      const { lng, lat } = map.getCenter();
+      const pos = SunCalc.getPosition(sunDate, lat, lng);
+      const azimuth = 180 + (pos.azimuth * 180) / Math.PI;
+      const polar = 90 - (pos.altitude * 180) / Math.PI;
+      const intensity = Math.sin(Math.max(pos.altitude, 0)) * 2.7;
+      const shadowIntensity = intensity <= 1 ? intensity : 1;
+
+      const shadowIntensityVal = () => {
+        if (shadowIntensity <= 0) return 0.05;
+        return shadowIntensity <= 0.9 ? shadowIntensity + 0.1 : shadowIntensity;
+      };
+
+      map.setLights([
+        {
+          id: 'directional',
+          type: 'directional',
+          properties: {
+            direction: [azimuth, polar > 90 ? 90 : polar],
+            'shadow-intensity': shadowIntensity,
+            color: ['interpolate', ['linear'], pos.altitude, -1, '#fff', 1, '#fff8f1'],
+            intensity: shadowIntensityVal(),
+            'cast-shadows': true
+          }
+        },
+        {
+          id: 'ambient',
+          type: 'ambient',
+          properties: {
+            color: ['interpolate', ['linear'], shadowIntensity, 0, '#777', 1, '#aaa'],
+            intensity: 1
+          }
+        }
+      ]);
+    }
+
+    document.getElementById('time-range').value = currentTime
+
+    function setSunDate(time) {
+      time = +timeInput.value;
+      sunDate.setHours(Math.floor(time / 60 / 60));
+      sunDate.setMinutes(Math.floor(time / 60) % 60);
+      sunDate.setSeconds(time % 60);
+    }
+
+    function updateLightsCallback(e) {
+      setSunDate(e.value)
+      updateLights()
+    }
+  </script>
+
+</body>
+
+</html>
